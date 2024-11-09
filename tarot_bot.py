@@ -189,8 +189,9 @@ async def start(update: Update, context: CallbackContext) -> None:
         await update.message.reply_text(
             "Данные бот работает для вас абсолютно бесплатно. Пожалуйста, подпишитесь на один из предложенных каналов, который может быть вам интересен и продолжите использование бота.\n\n"
             "Ссылки на каналы:\n"
-            "1. [Канал про психологию](https://t.me/psikholog_onlajn_besplatno_chat)",
-
+            "1. [Канал про психологию](https://t.me/psikholog_onlajn_besplatno_chat)\n"
+            "2. [Психолог, работа с тревогой](https://t.me/juliakoyash)\n"
+            ,
             parse_mode='Markdown'
         )
         return
