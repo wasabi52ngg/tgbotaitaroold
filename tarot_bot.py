@@ -38,6 +38,30 @@ MODEL_NAME = os.getenv('MODEL_NAME')
 MAX_TOKENS = int(os.getenv('MAX_TOKENS'))
 TEMPERATURE = float(os.getenv('TEMPERATURE'))
 
+def load_stop_words(file_path):
+    """Загружает стоп-слова из файла и возвращает их в виде множества."""
+    with open(file_path, 'r', encoding='utf-8') as file:
+        stop_words = {line.strip() for line in file}
+    return stop_words
+
+def create_stop_words_regex(stop_words):
+    """Создает регулярное выражение для поиска стоп-слов в сообщении."""
+    # Объединяем стоп-слова в одну строку, разделяя их символом "|" (или)
+    stop_words_pattern = '|'.join(map(re.escape, stop_words))
+    # Создаем регулярное выражение для поиска стоп-слов в любом месте сообщения
+    return re.compile(stop_words_pattern, re.IGNORECASE)
+
+def validate_message(message, stop_words_regex):
+    """Проверяет, содержит ли сообщение стоп-слова."""
+    # Ищем стоп-слова в сообщении
+    if stop_words_regex.search(message):
+        return False
+    return True
+
+stop_words_file = 'stop_words.txt'  # Путь к файлу со стоп-словами
+stop_words = load_stop_words(stop_words_file)
+stop_words_regex = create_stop_words_regex(stop_words)
+
 # Функция для загрузки данных из JSON-файла
 def load_user_data():
     if os.path.exists(USER_DATA_FILE):
@@ -81,6 +105,8 @@ def add_or_update_user(user_data, user_id, username, context: CallbackContext, t
                 user['place_of_birth'] = place_of_birth
             if 'subscribe' not in user:
                 user['subscribe'] = True
+            user['daily_requests'] = user.get('daily_requests', 0)
+            user['last_request_date'] = user.get('last_request_date', datetime.now().strftime('%d-%m-%Y'))
             user_found = True
             break
 
@@ -94,12 +120,14 @@ def add_or_update_user(user_data, user_id, username, context: CallbackContext, t
             'date_of_birth': date_of_birth,
             'time_of_birth': time_of_birth,
             'place_of_birth': place_of_birth,
-            'subscribe': True
+            'subscribe': True,
+            'daily_requests': 0,
+            'last_request_date': datetime.now().strftime('%d-%m-%Y')
         }
         user_data.append(new_user)
         context.application.create_task(notify_admin(context, f"Новый пользователь: {username} (ID: {user_id})"))
 
-    save_user_data(user_data) # Сохраняем все данные после любого изменения
+    save_user_data(user_data)  # Сохраняем все данные после любого изменения
 
 
 async def unsubscribe(update: Update, context: CallbackContext) -> None:
@@ -189,8 +217,8 @@ async def start(update: Update, context: CallbackContext) -> None:
         await update.message.reply_text(
             "Данные бот работает для вас абсолютно бесплатно. Пожалуйста, подпишитесь на один из предложенных каналов, который может быть вам интересен и продолжите использование бота.\n\n"
             "Ссылки на каналы:\n"
-            "1. [Канал про психологию](https://t.me/psikholog_onlajn_besplatno_chat)\n"
-            "2. [Психолог, работа с тревогой](https://t.me/juliakoyash)\n"
+            "1. [Канал про изотерику](https://t.me/vselennaya_taro_ezoterika)\n"
+            "2. [Канал про психологию](https://t.me/psikholog_onlajn_besplatno_chat)\n"
             ,
             parse_mode='Markdown'
         )
@@ -406,6 +434,32 @@ async def handle_message(update: Update, context: CallbackContext, recognized_te
     username = update.message.from_user.username
     user_data = load_user_data()
     tokens_used = count_tokens(message_text)
+
+    # Проверка на наличие стоп-слов
+    if not validate_message(message_text, stop_words_regex):
+        await update.message.reply_text(
+            "Извините, я не могу отвечать на подобные вопросы. Пожалуйста, направьте ваши запросы в безопасное и конструктивное русло.")
+        return
+
+    addition_for_prompt = ("Анализируй каждый запрос на предмет содержания. Если запрос "
+                           "содержит неадекватные, аморальные, пошлые, агрессивные, деструктивные элементы, ответь "
+                           "следующим образом: 'Извините, я не могу отвечать на подобные вопросы. Пожалуйста, направьте "
+                           "ваши запросы в безопасное и конструктивное русло.'")
+    # Проверка ограничения запросов
+    for user in user_data:
+        if user['user_id'] == user_id:
+            today = datetime.now().strftime('%d-%m-%Y')
+            if user['last_request_date'] != today:
+                user['daily_requests'] = 0
+                user['last_request_date'] = today
+
+            if user['daily_requests'] >= 5:
+                await update.message.reply_text("Вы превысили лимит 5 запросов в день. Попробуйте завтра.")
+                return
+
+            user['daily_requests'] += 1
+            break
+
     add_or_update_user(user_data, user_id, username, context, tokens_used)
 
     # Загрузка истории чатов
@@ -496,6 +550,7 @@ async def handle_message(update: Update, context: CallbackContext, recognized_te
         return
 
     try:
+        prompt += addition_for_prompt
         response = send_openai_request(prompt)
         await waiting_message.delete()
         await update.message.reply_text(response)
