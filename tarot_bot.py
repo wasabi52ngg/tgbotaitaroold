@@ -217,7 +217,7 @@ async def start(update: Update, context: CallbackContext) -> None:
         await update.message.reply_text(
             "Данные бот работает для вас абсолютно бесплатно. Пожалуйста, подпишитесь на один из предложенных каналов, который может быть вам интересен и продолжите использование бота.\n\n"
             "Ссылки на каналы:\n"
-            "1. [Канал про изотерику](https://t.me/vselennaya_taro_ezoterika)\n"
+            "1. [Канал: Таро, астрология и нумерология, ключи к судьбе](https://t.me/vselennaya_taro_ezoterika)\n"
             "2. [Канал про психологию](https://t.me/psikholog_onlajn_besplatno_chat)\n"
             ,
             parse_mode='Markdown'
@@ -579,24 +579,31 @@ def send_openai_request(prompt: str, max_tokens: int = MAX_TOKENS) -> str:
     return reply_text, response_tokens_used
     add_or_update_user(user_data, user_id, username, response_tokens_used)
 
-#Обработка команд
+async def check_subscription_and_handle_role(update: Update, context: CallbackContext, choice: str) -> None:
+    user_id = update.message.from_user.id
+    is_subscribed = await check_subscription_multiple(user_id, TELEGRAM_TOKEN, CHANNEL_IDS)
+    if not is_subscribed:
+        await update.message.reply_text("Вы не подписаны ни на 1 из каналов. Пожалуйста, подпишитесь на один из предложенных каналов, чтобы продолжить использование бота.")
+        return
+    await handle_role_selection(update, context, choice)
+
 async def astrology_command(update: Update, context: CallbackContext) -> None:
-    await handle_role_selection(update, context, 'astrology')
+    await check_subscription_and_handle_role(update, context, 'astrology')
 
 async def tarot_command(update: Update, context: CallbackContext) -> None:
-    await handle_role_selection(update, context, 'tarot')
+    await check_subscription_and_handle_role(update, context, 'tarot')
 
 async def numerology_command(update: Update, context: CallbackContext) -> None:
-    await handle_role_selection(update, context, 'numerology')
+    await check_subscription_and_handle_role(update, context, 'numerology')
 
 async def self_development_coach_command(update: Update, context: CallbackContext) -> None:
-    await handle_role_selection(update, context, 'self_development_coach')
+    await check_subscription_and_handle_role(update, context, 'self_development_coach')
 
 async def psychologist_command(update: Update, context: CallbackContext) -> None:
-    await handle_role_selection(update, context, 'psychologist')
+    await check_subscription_and_handle_role(update, context, 'psychologist')
 
 async def career_consultant_command(update: Update, context: CallbackContext) -> None:
-    await handle_role_selection(update, context, 'career_consultant')
+    await check_subscription_and_handle_role(update, context, 'career_consultant')
 
 
 async def handle_role_selection(update: Update, context: CallbackContext, choice: str) -> None:
@@ -625,7 +632,7 @@ async def handle_role_selection(update: Update, context: CallbackContext, choice
                 await update.message.reply_text("Введите время рождения в формате ЧЧ:ММ (например 07:20 или 19:00):")
         else:
             await update.message.reply_text(
-                "🟨 Астролог\n\n"
+                "Астролог\n\n"
                 "Добро пожаловать в мир астрологии! ✨\n\n"
                 "Как астролог, я помогу вам понять, как звезды и планеты могут влиять на вашу жизнь.\n\n"
                 "Мне понадобятся данные о вашей дате, времени и месте рождения, чтобы я мог составить ваш персональный гороскоп и поделиться с вами удивительными астрологическими прогнозами.\n\n"
@@ -641,7 +648,7 @@ async def handle_role_selection(update: Update, context: CallbackContext, choice
             await update.message.reply_text("Дата рождения уже введена. Введите ваш вопрос для нумеролога:")
         else:
             await update.message.reply_text(
-                "🟨 Нумеролог\n\n"
+                "Нумеролог\n\n"
                 "Добро пожаловать в мир нумерологии! 🌟\n\n"
                 "Как нумеролог, я помогу вам раскрыть тайны чисел, которые могут пролить свет на вашу личность, судьбу и жизненные пути.\n\n"
                 "Мне понадобится дата вашего рождения, чтобы я мог провести анализ и поделиться с вами удивительными инсайтами о вашем жизненном пути и предназначении.\n\n"
@@ -668,7 +675,7 @@ async def handle_role_selection(update: Update, context: CallbackContext, choice
         await update.message.reply_text("Вы выбрали роль психолога. Выберите методику терапии или нажмите 'не разбираюсь':", reply_markup=reply_markup)
     elif choice == "career_consultant":
         await update.message.reply_text(
-            "🟨 Карьерный консультант\n\n"
+            "Карьерный консультант\n\n"
             "💼 Добро пожаловать к Карьерному консультанту!\n\n"
             "Я могу помочь вам с профессиональными советами, планированием карьеры и достижением ваших карьерных целей.\n\n"
             "❓ **Как это работает:**\n"
